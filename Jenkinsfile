@@ -13,7 +13,8 @@ pipeline {
         DOCKER_TAG = "${BUILD_NUMBER}"
         // Use credentials for VM connection details
         VM_DETAILS = credentials('vm-connection-details')
-        SSH_CREDENTIALS = credentials('vm-ssh-credentials')
+        // Define SSH credentials ID
+        SSH_CREDS = 'vm-ssh-credentials'
     }
 
     stages {
@@ -103,11 +104,17 @@ pipeline {
                     // Write deployment script to file
                     writeFile file: 'deploy.sh', text: deployScript
 
-                    // Copy deployment script to VM and execute using port
-                    sshagent([SSH_CREDENTIALS]) {
+                    // Deploy using SSH
+                    withCredentials([sshUserPrivateKey(credentialsId: env.SSH_CREDS, keyFileVariable: 'SSH_KEY')]) {
                         sh """
-                            scp -P ${VM_SSH_PORT} -o StrictHostKeyChecking=no deploy.sh ${VM_USER}@${VM_IP}:~/
-                            ssh -p ${VM_SSH_PORT} -o StrictHostKeyChecking=no ${VM_USER}@${VM_IP} 'bash ~/deploy.sh'
+                            # Ensure correct permissions on SSH key
+                            chmod 600 "\${SSH_KEY}"
+                            
+                            # Copy deployment script
+                            scp -i "\${SSH_KEY}" -P ${VM_SSH_PORT} -o StrictHostKeyChecking=no deploy.sh ${VM_USER}@${VM_IP}:~/
+                            
+                            # Execute deployment script
+                            ssh -i "\${SSH_KEY}" -p ${VM_SSH_PORT} -o StrictHostKeyChecking=no ${VM_USER}@${VM_IP} 'bash ~/deploy.sh'
                         """
                     }
                 }
