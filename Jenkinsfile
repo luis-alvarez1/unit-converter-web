@@ -3,6 +3,7 @@ pipeline {
 
     tools {
         nodejs 'nodejs'
+        docker 'docker'
     }
 
     environment {
@@ -10,15 +11,21 @@ pipeline {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
         DOCKER_IMAGE = 'luisalvarez1106/unit-converter'
         DOCKER_TAG = "${BUILD_NUMBER}"
-        VM_IP = '192.168.1.150'
-        VM_SSH_PORT = '2215'
-        VM_USER = 'root'
+        // Use credentials for VM connection details
+        VM_DETAILS = credentials('vm-connection-details')
         SSH_CREDENTIALS = credentials('vm-ssh-credentials')
     }
 
     stages {
         stage('Environment Setup') {
             steps {
+                script {
+                    // Parse VM details from JSON
+                    def vmDetails = readJSON text: VM_DETAILS
+                    env.VM_IP = vmDetails.ip
+                    env.VM_SSH_PORT = vmDetails.port
+                    env.VM_USER = vmDetails.user
+                }
                 // Verify required tools
                 sh '''
                     echo "Node version: $(node --version)"
@@ -96,11 +103,11 @@ pipeline {
                     // Write deployment script to file
                     writeFile file: 'deploy.sh', text: deployScript
 
-                    // Copy deployment script to VM and execute
+                    // Copy deployment script to VM and execute using port
                     sshagent([SSH_CREDENTIALS]) {
                         sh """
-                            scp -o StrictHostKeyChecking=no deploy.sh ${VM_USER}@${VM_IP}:~/
-                            ssh -o StrictHostKeyChecking=no ${VM_USER}@${VM_IP} 'bash ~/deploy.sh'
+                            scp -P ${VM_SSH_PORT} -o StrictHostKeyChecking=no deploy.sh ${VM_USER}@${VM_IP}:~/
+                            ssh -p ${VM_SSH_PORT} -o StrictHostKeyChecking=no ${VM_USER}@${VM_IP} 'bash ~/deploy.sh'
                         """
                     }
                 }
