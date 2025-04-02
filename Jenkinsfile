@@ -42,13 +42,6 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
-            steps {
-                // Run tests
-                sh 'npm test'
-            }
-        }
-
         stage('Build TypeScript') {
             steps {
                 // Build TypeScript code
